@@ -1,36 +1,112 @@
 #core/capturer.py
-
 import pcap
-from datetime import datetime
+import threading
 
-def start_capture(interface_name, packets_count=20):
+class PacketCapturer:
     """
-    지정한 네트워크 인터페이스에서 패킷을 캡처
+    This class manages packet capturing in a separate thread.
+    start() method to start capturing, stop() method to stop capturing.
+    별도의 스레드에 패킷 캡처를 관리하느 클래스
+    start() 메서드로 캡처 시작, stop() 메서드로 캡처 중지
     
-    Args:
-        interface_name (str): 캡처할 네트워크 인터페이스 이름
-        packets_count (int): 캡처할 최대 패킷수    
-
     """
-    print(f"\n>> '{interface_name}' 인터페이스에서 패킷 캡처 시작... (총 {packets_count})\n")
     
-    try:
-        # pcap 객체 생성
-        # promisc =True :  네트워크의 모든 패킷을 수신
-        # immediate=True : 패킷을 버퍼링 없이 즉시 처리
+    def __init__(self, analyzer,display_handler):
+        self._is_running = False
+        self._capture_thread = None
+        self._sniffer = None
+        self._analyzer = analyzer
+        self.display_handler = display_handler
         
-        sniffer = pcap.pcap(name=interface_name, promisc=True, immediate=True)
-        # 캡처된 패킷 순회
-        for i, (timestamp, packet_data) in enumerate(sniffer, 1) :
-            # 타임스탬프를 읽을 수 있도록 변환
-            cap_time = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S.%f')
-            
-            # 캡처된 패킷 정보 출력
-            print(f"[{i:02d}] Time: {cap_time} | Length: {len(packet_data)} Bytes")
+    def start(self, interface_name):
+        """
+        Start the capture thread
+        캡처 스레드 시작
+        
+        """
+        if self._is_running:
+            print("이미 캡처가 진행 중입니다.")
+            return
+        
+        print(f"\n>>'{interface_name}' 인터페이스에서 캡처를 시작합니다.")
+        print(">>중지하려면 Enter 키를 누르세요.\n")
+        
+        # Generate pcap object
+        # pcap 객체 생성
+        try:
+            self._sniffer = pcap.pcap(name=interface_name, promisc=True, immediate=True,timeout_ms=50)
+        except Exception as e:
+            print(f"[오류] pcap 객체를 생성할 수 없음.{e}")
+            return
+        
+        self._is_running = True
+        # Generate a thread to run _capture_loop method in the background
+        # _capture_loop 메서드를 백그라운드에서 실행할 스레드 생성
+        self._capture_thread = threading.Thread(target=self._capture_loop)
+        self._capture_thread.start()
+        
+    def stop(self):
+        """
+        Stop the capture thread
+        캡처 스레드 중지
+        
+        """
+        if not self._is_running:
+            return
+        
+        print("\n>> 캡처를 중지합니다...")
+        self._is_running = False    # Set the flag to false to stop the loop
+        if self._capture_thread:                            # 루프를 멈추도록 플래그를 false로 설정
+            self._capture_thread.join() # Wait for the thread to fully terminate
+                                        # 스레드가 완전히 종료될 때까지 대기
+        print(">> 캡처가 중지되었습니다.")
+        self._sniffer = None
+    
+    def _capture_loop(self):
+        """ 
+        Packet capture loop
+        패킷 캡처 루프 
+        
+        """
+        packet_cnt = 1
+        # Unlimited loop while self._is_running is True
+        # self._is_running이 True인 동안 무한루프
+        
+        while self._sniffer and self._is_running:
+            try:
+                # 
+                # If no packet arrives within 100ms, None is returned and the loop continues.
+                # 여러 패킷을 한번에 읽음 (readpkts)
+                # 100ms 동안 패킷이 없으면 None 반환 루프는 계속됨.
+                result = self._sniffer.readpkts() 
+                if not result: continue
 
-            # 지정된 패킷 수에 도달하면 캡처 중지
-            if i >= packets_count : 
-                break
-            
-    except Exception as e:
-        print(f"[오류] 캡처 중 문제가 발생했습니다: {e}")
+                # ---  디버깅 코드 추가  ---
+                # 패킷이 잡혔는지 먼저 확인합니다.
+                #print(f"DEBUG: Packet captured! Length: {len(result[1])}") 
+                # ---  여기까지  ---
+                
+                for ts, packet_data in result:
+                    #loop 내부에서도 중지 플래그 확인
+                    if not self._is_running:
+                        break
+                
+                    #캡처한 데이터를 analyzer로 넘겨서 분석 요청
+                    analysis = self._analyzer.analyze(ts,packet_data)
+                
+                    #분석 결과를 받아서 출력 (IP 정보가 존재하는 패킷만)
+                    if analysis :
+                        self.display_handler(packet_cnt,analysis)
+                        packet_cnt += 1
+                if not self._is_running:
+                    break
+                
+            except pcap.PcapError as e: # pcap 관련 오류 처리
+                if "Not supported" in str(e): # 종료 시 발생할 수 있는 오류를 무시함
+                    if not self._is_running: break
+                print(f"[캡쳐 오류 / Pcap] Loop error: {e}")
+                break    
+            except Exception as e:
+                print(f"[캡쳐 오류 / 일반] Loop error: {e}")
+                if not self._is_running: break        
+                

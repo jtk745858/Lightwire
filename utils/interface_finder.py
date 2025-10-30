@@ -1,17 +1,14 @@
-#utils/interface_finder.py
+# utils/interface_finder.py
 import pcap
 
 def get_interfaces():
     """
-    사용 가능한 모든 네트워크 인터페이스를 찾아 리스트로 반환
-    오류 발생 시 빈 리스트 반환
+    Returns a list of all network interfaces that can be captured by pcap
+    pcap으로 캡처 가능한 모든 네트워크 인터페이스 목록을 반환합니다.
+    
     """
     try:
-        interfaces = pcap.findalldevs()
-        return interfaces
+        return pcap.findalldevs()
     except Exception as e:
-        #Npcap이 설치되지 않았거나 권한 문제가 있을 때 오류 발생 가능
-        print(f"Error finding interfaces: {e}")
-        print("Please ensure Npcap is installed and you have the necessary permissions.")
-        
+        print(f"[오류] 네트워크 인터페이스를 찾는 데 실패했습니다: {e}")
         return []
