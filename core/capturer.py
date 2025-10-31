@@ -101,11 +101,7 @@ class PacketCapturer:
                 if not self._is_running:
                     break
                 
-            except pcap.PcapError as e: # pcap 관련 오류 처리
-                if "Not supported" in str(e): # 종료 시 발생할 수 있는 오류를 무시함
-                    if not self._is_running: break
-                print(f"[캡쳐 오류 / Pcap] Loop error: {e}")
-                break    
+              
             except Exception as e:
                 print(f"[캡쳐 오류 / 일반] Loop error: {e}")
                 if not self._is_running: break        
