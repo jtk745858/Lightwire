@@ -1,8 +1,9 @@
 #core/capturer.py
 import pcap
 import threading
+from PySide6.QtCore import QObject, Signal # (추가 v1.0) Qt 시그널 임포트
 
-class PacketCapturer:
+class PacketCapturer(QObject):
     """
     This class manages packet capturing in a separate thread.
     start() method to start capturing, stop() method to stop capturing.
@@ -10,13 +11,18 @@ class PacketCapturer:
     start() 메서드로 캡처 시작, stop() 메서드로 캡처 중지
     
     """
+    #(추가 v1.0) "패킷 도착" 시그널 정의
+    # 'object' 타입의 데이터(analysis 딕셔너리)를 전달할 것.
+    packet_captured_signal = Signal(object)
     
-    def __init__(self, analyzer,display_handler):
+    
+    def __init__(self, analyzer):
+        super().__init__() # (추가 v1.0) Qobject 부모 생성자 호출
         self._is_running = False
         self._capture_thread = None
         self._sniffer = None
         self._analyzer = analyzer
-        self.display_handler = display_handler
+        # self.display_handler = display_handler -> CLI용
         
     def start(self, interface_name):
         """
@@ -88,21 +94,22 @@ class PacketCapturer:
                 
                 for ts, packet_data in result:
                     #loop 내부에서도 중지 플래그 확인
-                    if not self._is_running:
-                        break
+                    if not self._is_running: break
                 
                     #캡처한 데이터를 analyzer로 넘겨서 분석 요청
                     analysis = self._analyzer.analyze(ts,packet_data)
                 
                     #분석 결과를 받아서 출력 (IP 정보가 존재하는 패킷만)
                     if analysis :
-                        self.display_handler(packet_cnt,analysis)
+                        # (수정) display_handler 호출 대신 시그널 방출
+                        analysis['id'] = packet_cnt # GUI에서 사용할 패킷 번호 추가
+                        self.packet_captured_signal.emit(analysis)
+                        # self.display_handler(packet_cnt,analysis) -> CLI용
                         packet_cnt += 1
-                if not self._is_running:
-                    break
+                if not self._is_running: break
                 
-              
+            
             except Exception as e:
-                print(f"[캡쳐 오류 / 일반] Loop error: {e}")
                 if not self._is_running: break        
+                print(f"[캡쳐 오류] Loop error: {e}")
                 

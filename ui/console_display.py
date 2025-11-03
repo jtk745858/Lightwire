@@ -25,7 +25,7 @@ def display_packet_info(packet_count, analysis, state):
     
     #------------------------------------------------------------------------------
     # (추가v0.3) 필터링 로직
-    # 1. 필터가 켜져있고 (state.filter_enabled == True)
+    # 1. 필터가 켜져있고 (state.filter_endabled == True)
     # 2. IP 패킷이 아니거나
     # 3. 출발지/목적지 포트 둘 다 비암호화 포트 목록에 속하지않으면
     #    -> 아무것도 출력하지 않고 함수를 종료

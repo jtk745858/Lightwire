@@ -18,7 +18,8 @@ class PacketAnalyzer:
             'timestamp' : timestamp, 
             'src_mac' : None, 'dst_mac' : None, 'eth_type' : None,   #L2
             'src_ip' : None,'dst_ip' : None,'protocol' : None,       #L3 
-            'src_port' : None, 'dst_port' : None                     #L4
+            'src_port' : None, 'dst_port' : None,                    #L4
+            'payload_str' : ''    # (추가 v1.0) L7 페이로드 문자열  
          }
         try:
             """
@@ -128,7 +129,13 @@ class PacketAnalyzer:
                     # H : 2byte를 unsigned 정수로 읽음 (도착지 포트)
                     analysis_result['src_port'] = ports[0] # 출발지 포트 데이터 저장
                     analysis_result['dst_port'] = ports[1] # 도착지 포트 데이터 저장
-            
+                    
+                    # (추가 v1.0) L7 시작점 계산 (TCP)
+                    tcp_header_byte_12 = transport_layer_data[12]
+                    data_offset = (tcp_header_byte_12 & 0xF0) >> 4  # 상위 4비트가 데이터 오프셋
+                    tcp_header_length = data_offset * 4
+                    payload_start = transport_layer_start + tcp_header_length
+                    
                 # Parse UDP protocol (8byte fixed length)
                 # UDP protocol 파싱 (8byte 고정길이)
                 elif protocol == 17 : # UDP 
@@ -140,7 +147,24 @@ class PacketAnalyzer:
                     # H : 2byte를 unsigned 정수로 읽음 (도착지 포트)
                     analysis_result['src_port'] = ports[0] # 출발지 포트 데이터 저장
                     analysis_result['dst_port'] = ports[1] # 도착지 포트 데이터 저장
-            
+
+                    # (추가 v1.0) L7 시작점 계산 (UDP)
+                    payload_start = transport_layer_start + 8
+                    
+                """ 
+                4. (added v1.0) L7) Payload analysis
+                4. (추가 v1.0) L7) 페이로드 분석
+                """
+                if payload_start > 0 and payload_start < len(packet_data):
+                    payload_data = packet_data[payload_start:]
+                    try:
+                        # Try to decode payload as Unencrypted text (UTF-8)
+                        # 비암호화 프로토콜은 디코딩 시도
+                        analysis_result['payload_str'] = payload_data.decode('utf-8')
+                    except UnicodeDecodeError:
+                        # 바이너리 데이터는 16진수 문자열로 표현
+                        analysis_result['payload_str'] = payload_data.hex(' ')
+                
             return analysis_result
             
         except Exception as e:
