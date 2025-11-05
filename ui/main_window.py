@@ -1,3 +1,4 @@
+# ui/main_window.py
 import sys
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
@@ -9,6 +10,8 @@ from datetime import datetime
 from utils.interface_finder import get_interfaces
 from core.analyzer import PacketAnalyzer
 from core.capturer import PacketCapturer
+from ui.sensitive_info_window import SensitiveInfoWindow
+
 #----------------------------------------------------------------------------------
 # 비암호화 트래픽을 간주할 포트 번호 집합
 # (필요에 따라 포트 번호를 추가/제거)
@@ -32,9 +35,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Lightwire - Packet Analyzer prototype v1.0 (PySide6)")
         self.setGeometry(100, 100, 1000, 600)
         
-        self.capturerer = None
+        self.capturer = None
         self.analyzer = PacketAnalyzer()
         
+        # 민감 정보 출력 윈도우 인스턴스 생성
+        self.sensitive_window = SensitiveInfoWindow()
         # Main layout
         # 메인 레이아웃
         main_widget = QWidget()
@@ -52,21 +57,29 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"인터페이스 로드 실패: {e}")
             self.iface_combo.addItem("인터페이스 로드 실패")
-            
+        
+        # 패킷 캡처 시작 버튼
         self.start_button = QPushButton("캡처 시작")
         self.start_button.clicked.connect(self.start_capture)
          
+        # 패킷 캡처 중지 버튼
         self.stop_button = QPushButton("캡처 중지")
         self.stop_button.clicked.connect(self.stop_capture)
         self.stop_button.setEnabled(False)
         
+        # 비암호화 패킷 필터 ON/OFF 체크박스
         self.filter_checkbox = QCheckBox("비암호화 트래픽만 표시")
         self.filter_checkbox.setChecked(False) # 기본값: 필터 해제
         
-        control_layout.addWidget(self.iface_combo)
+        # 민감 정보를 담은 트래픽의 로그를 띄워주는 윈도우를 여는 버튼
+        self.sensitive_button = QPushButton("민감 정보 로그 보기")
+        self.sensitive_button.clicked.connect(self.sensitive_window.show)
+        
+        control_layout.addWidget(self.iface_combo) # 네트워크 인터페이스 콤보박스
         control_layout.addWidget(self.start_button) # 캡처 시작 버튼
         control_layout.addWidget(self.stop_button)  # 캡처 중단 버튼
         control_layout.addWidget(self.filter_checkbox) # 필터 적용/해제 체크박스
+        control_layout.addWidget(self.sensitive_button) # 민감 정보 로그 버튼
         control_layout.addStretch() # 버튼들 왼쪽 정렬
         main_layout.addWidget(control_widget)
         
@@ -74,10 +87,10 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Vertical)
         main_layout.addWidget(splitter)
         
-        #3. 패킷 테이블 (상단)
+        # 3. 패킷 테이블 (상단)
         self.packet_table = QTableWidget()
         self.packet_table.setColumnCount(7)
-        self.packet_table.setHorizontalHeaderLabels(["No.","Time", "Source IP", "src Port", "Destination IP", "Dst Port", "Protocol"])
+        self.packet_table.setHorizontalHeaderLabels(["No.","Time", "Source IP", "Src Port", "Destination IP", "Dst Port", "Protocol"])
         self.packet_table.verticalHeader().setVisible(False)
         
         self.packet_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -88,7 +101,7 @@ class MainWindow(QMainWindow):
         self.packet_table.horizontalHeader().setSectionResizeMode(4,QHeaderView.Stretch)
         splitter.addWidget(self.packet_table)
         
-        #4. 페이로드 텍스트 뷰 (하단)
+        # 4. 페이로드 텍스트 뷰 (하단)
         self.payload_view = QTextEdit()
         self.payload_view.setReadOnly(True)
         self.payload_view.setFontFamily("Consolas")
@@ -103,7 +116,8 @@ class MainWindow(QMainWindow):
         selected_iface = self.iface_combo.currentText()
         if not selected_iface or "실패" in selected_iface:
             return
-            
+        
+        self.sensitive_window.clear_log() # 패킷 캡처 시작 시 민감정보 로그 창 초기화
         self.capturer = PacketCapturer(self.analyzer)
         # 시그널과 슬롯 연결
         self.capturer.packet_captured_signal.connect(self.add_packet_to_table)
@@ -148,7 +162,11 @@ class MainWindow(QMainWindow):
         if not analysis.get('src_ip'):
             return
         
-        #테이블에 패킷 정보 행 추가
+        # 민감 정보가 존재하면 새 윈도우(민감정보 윈도우)로 전달    
+        if analysis.get('sensitive_info'):
+            self.sensitive_window.add_sensitive_packet(analysis)
+            
+        # 테이블에 패킷 정보 행 추가
         row_cnt = self.packet_table.rowCount()
         self.packet_table.insertRow(row_cnt)
             
@@ -183,7 +201,8 @@ class MainWindow(QMainWindow):
             
             
     def closeEvent(self, event):
-        #메인 창을 닫을 때 스레드 종료
+        # 메인 창을 닫을 때 스레드 종료
         self.stop_capture()
+        self.sensitive_window.close() # 민감 정보 윈도우도 닫기
         event.accept()
             

@@ -1,5 +1,17 @@
 import socket
 import struct
+import re
+#----------------------------------------------------------------------------------
+# 민감정보 키워드 목록 정의
+# (필요에 따라 키워드 추가/제거)
+# (payload_data는 bytes이므로 키워드도 bytes로 정의)
+SENSITIVE_KEYWORDS = [
+    b'password', b'pass', b'passwd',b'pwd',
+    b'username', b'userid', b'uid', b'login',
+    b'ssn', b'creditcard', b'cardnum', b'user:',b'id=',b'passwd=',
+    b'user=',b'password=',b'pwd=',b'userid=',b'username=',b'uid='
+]
+#----------------------------------------------------------------------------------
 class PacketAnalyzer:
     """
     This class parse and analyze captured raw packet data.
@@ -104,6 +116,7 @@ class PacketAnalyzer:
                 analysis_result['protocol'] = protocol
                 analysis_result['src_ip'] = socket.inet_ntoa(ip_parts[1]) # 출발지 ip주소 저장, 10진수 문자열 IP주소로 변환하는 inet_ntoa()함수
                 analysis_result['dst_ip'] = socket.inet_ntoa(ip_parts[2]) # 목적지 ip주소 저장, 10진수 문자열 IP주소로 변환하는 inet_ntoa()함수
+                
                 """
                     3. L4) Translate layer header parsing
                     3. L4) 전송계층 헤더 파싱       
@@ -115,6 +128,8 @@ class PacketAnalyzer:
                 transport_layer_start = ip_header_start + ip_header_length
                 transport_layer_data = packet_data[transport_layer_start:]
 
+                payload_start = 0
+                payload_data =b''
                 # If protocol = 6(TCP) or 17(UDP), parse port information, otherwise do not parse.
                 # protocol의 값이 6일 때 TCP 파싱 / 17일 때 UDP 파싱 / 그 외의 값은 파싱을 하지 않음
                 
@@ -135,6 +150,7 @@ class PacketAnalyzer:
                     data_offset = (tcp_header_byte_12 & 0xF0) >> 4  # 상위 4비트가 데이터 오프셋
                     tcp_header_length = data_offset * 4
                     payload_start = transport_layer_start + tcp_header_length
+                    payload_data = packet_data[payload_start:]
                     
                 # Parse UDP protocol (8byte fixed length)
                 # UDP protocol 파싱 (8byte 고정길이)
@@ -151,6 +167,8 @@ class PacketAnalyzer:
                     # (추가 v1.0) L7 시작점 계산 (UDP)
                     payload_start = transport_layer_start + 8
                     
+                    payload_data = packet_data[payload_start:]
+                    
                 """ 
                 4. (added v1.0) L7) Payload analysis
                 4. (추가 v1.0) L7) 페이로드 분석
@@ -164,6 +182,14 @@ class PacketAnalyzer:
                     except UnicodeDecodeError:
                         # 바이너리 데이터는 16진수 문자열로 표현
                         analysis_result['payload_str'] = payload_data.hex(' ')
+                    # 민감 정보 탐지로직
+                    # 페이로드를 소문자로 변환하여 키워드를 발견하면 플레그를 세우고 저장
+                    payload_lower = payload_data.lower()
+                    for keyword in SENSITIVE_KEYWORDS:
+                        if keyword in payload_lower:
+                            analysis_result['sensitive_info'] = True
+                            analysis_result['sesitive_keyword'] = keyword.decode('utf-8')
+                            break
                 
             return analysis_result
             
