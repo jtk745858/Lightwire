@@ -41,6 +41,12 @@ class PacketCapturer(QObject):
         # pcap 객체 생성
         try:
             self._sniffer = pcap.pcap(name=interface_name, promisc=True, immediate=True,timeout_ms=50)
+            try:
+                self._sniffer.setfilter('tcp or udp')
+                print(">>[필터 적용] TCP/UDP 트래픽만 캡처")
+            
+            except Exception as filter_e:
+                print(f"[경고] BPF 필터를 적용하지 못했습니다: {filter_e}")
         except Exception as e:
             print(f"[오류] pcap 객체를 생성할 수 없음.{e}")
             return
