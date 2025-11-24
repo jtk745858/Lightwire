@@ -32,7 +32,7 @@ UNENCRYPTED_PORTS = {
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__() # QMainWindow 부모 생성자 호출
-        self.setWindowTitle("Lightwire - Packet Analyzer prototype v1.0 (PySide6)")
+        self.setWindowTitle("Lightwire - Packet Analyzer prototype v1.1 (PySide6)")
         self.setGeometry(100, 100, 1000, 600)
         
         self.capturer = None
@@ -175,9 +175,12 @@ class MainWindow(QMainWindow):
         cap_time = datetime.fromtimestamp(analysis['timestamp']).strftime("%H:%M:%S.%f")
             
         # 페이로드 데이터를 별도 저장 (딕셔너리)
-        packet_id = analysis['id']
+        packet_id = row_cnt + 1
+        analysis['display_id'] = packet_id
         self.packet_store[packet_id] = analysis.get('payload_str','No Payload Data')
-            
+        
+        if analysis.get('sensitive_info'):
+            self.sensitive_window.add_sensitive_packet(analysis)
         self.packet_table.setItem(row_cnt, 0, QTableWidgetItem(str(packet_id)))
         self.packet_table.setItem(row_cnt, 1, QTableWidgetItem(cap_time))
         self.packet_table.setItem(row_cnt, 2, QTableWidgetItem(analysis['src_ip']))

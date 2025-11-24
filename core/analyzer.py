@@ -188,7 +188,7 @@ class PacketAnalyzer:
                     for keyword in SENSITIVE_KEYWORDS:
                         if keyword in payload_lower:
                             analysis_result['sensitive_info'] = True
-                            analysis_result['sesitive_keyword'] = keyword.decode('utf-8')
+                            analysis_result['sensitive_keyword'] = keyword.decode('utf-8')
                             break
                 
             return analysis_result

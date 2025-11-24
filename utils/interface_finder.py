@@ -1,5 +1,8 @@
 # utils/interface_finder.py
 import pcap
+import subprocess
+import re
+import codecs
 
 def get_interfaces():
     """

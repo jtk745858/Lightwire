@@ -32,11 +32,11 @@ class SensitiveInfoWindow(QWidget):
         try:
             protocol_map = {6:'TCP',17:'UDP',1:'ICMP'}
             protocol = protocol_map.get(analysis['protocol'], str(analysis.get('protocol','N/A')))
-            
+            packet_no = analysis.get('display_id', analysis['id'])
             log_entry = (
                 f"===============================================================\n"
                 f"[!] 민감 키워드 '{analysis.get('sensitive_keyword','N/A')}' 감지!\n"
-                f"Packet #{analysis['id']} ({protocol})\n"
+                f"Packet #{packet_no} ({protocol})\n"
                 f"From: {analysis['src_ip']}:{analysis.get('src_port', 'N/A')}\n"
                 f"To:   {analysis['dst_ip']}:{analysis.get('dst_port', 'N/A')}\n"
                 f"----------------- Payload -----------------\n"
