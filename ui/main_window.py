@@ -3,7 +3,7 @@ import sys
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
     QPushButton, QTableWidget, QTableWidgetItem, QSplitter, QTextEdit, 
-    QAbstractItemView, QHeaderView, QCheckBox 
+    QAbstractItemView, QHeaderView, QCheckBox, QMessageBox, QFileDialog
 )
 from PySide6.QtCore import Qt
 from datetime import datetime
@@ -11,7 +11,7 @@ from utils.interface_finder import get_interfaces
 from core.analyzer import PacketAnalyzer
 from core.capturer import PacketCapturer
 from ui.sensitive_info_window import SensitiveInfoWindow
-
+from utils.csv_exporter import export_packets_to_csv
 #----------------------------------------------------------------------------------
 # 비암호화 트래픽을 간주할 포트 번호 집합
 # (필요에 따라 포트 번호를 추가/제거)
@@ -62,6 +62,12 @@ class MainWindow(QMainWindow):
         self.stop_button.clicked.connect(self.stop_capture)
         self.stop_button.setEnabled(False)
         
+        # 로그 저장 버튼
+        self.save_button = QPushButton("로그 저장")
+        self.save_button.clicked.connect(self.save_packets_to_csv)
+        self.save_button.setEnabled(False)
+        
+        
         # 비암호화 패킷 필터 ON/OFF 체크박스
         self.filter_checkbox = QCheckBox("비암호화 트래픽만 표시")
         self.filter_checkbox.setChecked(False) # 기본값: 필터 해제
@@ -73,6 +79,7 @@ class MainWindow(QMainWindow):
         control_layout.addWidget(self.iface_combo) # 네트워크 인터페이스 콤보박스
         control_layout.addWidget(self.start_button) # 캡처 시작 버튼
         control_layout.addWidget(self.stop_button)  # 캡처 중단 버튼
+        control_layout.addWidget(self.save_button)  # 로그 저장 버튼
         control_layout.addWidget(self.filter_checkbox) # 필터 적용/해제 체크박스
         control_layout.addWidget(self.sensitive_button) # 민감 정보 로그 버튼
         control_layout.addStretch() # 버튼들 왼쪽 정렬
@@ -220,4 +227,30 @@ class MainWindow(QMainWindow):
         self.stop_capture()
         self.sensitive_window.close() # 민감 정보 윈도우도 닫기
         event.accept()
+
+    def save_packets_to_csv(self):
+        """저장 버튼을 눌렀을 때 실행되는 슬롯 함수"""
+        
+        # 1. 방어 코드 (Validation)
+        # 저장할 데이터가 없을 때 함수 종료
+        if not self.all_packets:
+            QMessageBox.warning(self, "저장 불가","저장할 패킷 데이터가 없습니다.")
+            return
+        
+        # 2. 파일 저장 대화상자 열기 (UI)
+        file_path, _ = QFileDialog.getsaveFileName(
+            self,"로그 파일 저장", "", "CSV Files (*.csv);;All Files (*)"
+        )
+        
+        if not file_path:
+            return # 사용자가 저장을 취소한 경우 함수 종료
+        
+        try:
+            # 3. 별도 모듈에게 저장 명령(로직 위임)
+            export_packets_to_csv(self.all_packets, file_path)
             
+            # 4. 결과 알림 (UI)
+            QMessageBox.information(self, "저장 완료", f"성공적으로 저장되었습니다.\n{file_path}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "저장 실패", f"파일 저장 중 오류가 발생했습니다.\n{str(e)}")
