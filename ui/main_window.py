@@ -21,12 +21,7 @@ UNENCRYPTED_PORTS = {
     20, 21, # FTP (Data, Control)
     69,     # TFTP
     23,     # Telnet
-    25,     # SMTP
-    110,    # POP3
-    143,    # IMAP
     53,     # DNS
-    161,    # SNMP
-    389,    # LDAP
 }
 #----------------------------------------------------------------------------------    
 class MainWindow(QMainWindow):
@@ -114,15 +109,30 @@ class MainWindow(QMainWindow):
         
     def start_capture(self):
         selected_iface = self.iface_combo.currentText()
-        if not selected_iface or "실패" in selected_iface:
+        
+        # 예외처리 : 유효하지 않은 인터페이스 선택 시
+        if not selected_iface or "실패" in selected_iface or "없음" in selected_iface:
             return
+        
+        # --- [수정] 텍스트 파싱 로직 ---
+        # 콤보박스에 있는 "이더넷[\Device\NPF_...]"에서
+        # 대괄호 안의 "\Device\NPF_... 부분만 추출"
+        interface_name = selected_iface
+        if "[" in selected_iface and selected_iface.endswith("]"):
+            # '[' 기준으로 나누고, 맨 뒤쪽 덩어리에서 마지막글자 (']')를 뺌.
+            interface_name = selected_iface.split("[")[-1][:-1]
+        # ------------------------------
+        
+        # --- 디버깅용 출력 ---
+         # print(f"DEBUG : 캡처 요청 ID -> {interface_name}")
+        # ---------------------
         
         self.sensitive_window.clear_log() # 패킷 캡처 시작 시 민감정보 로그 창 초기화
         self.capturer = PacketCapturer(self.analyzer)
         # 시그널과 슬롯 연결
         self.capturer.packet_captured_signal.connect(self.add_packet_to_table)
-        
-        self.capturer.start(selected_iface)
+
+        self.capturer.start(interface_name)
         
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
@@ -181,6 +191,8 @@ class MainWindow(QMainWindow):
         
         if analysis.get('sensitive_info'):
             self.sensitive_window.add_sensitive_packet(analysis)
+            
+            
         self.packet_table.setItem(row_cnt, 0, QTableWidgetItem(str(packet_id)))
         self.packet_table.setItem(row_cnt, 1, QTableWidgetItem(cap_time))
         self.packet_table.setItem(row_cnt, 2, QTableWidgetItem(analysis['src_ip']))
