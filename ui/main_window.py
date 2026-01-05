@@ -27,7 +27,7 @@ UNENCRYPTED_PORTS = {
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__() # QMainWindow 부모 생성자 호출
-        self.setWindowTitle("Lightwire - Packet Analyzer prototype v1.1 (PySide6)")
+        self.setWindowTitle("Lightwire - Packet Analyzer prototype v1.2 (PySide6)")
         self.setGeometry(100, 100, 1000, 600)
         
         self.capturer = None
@@ -35,6 +35,8 @@ class MainWindow(QMainWindow):
         
         # 민감 정보 출력 윈도우 인스턴스 생성
         self.sensitive_window = SensitiveInfoWindow()
+        
+        self.all_packets = []
         # Main layout
         # 메인 레이아웃
         main_widget = QWidget()
@@ -144,10 +146,11 @@ class MainWindow(QMainWindow):
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
         self.iface_combo.setEnabled(False)
+        self.save_button.setEnabled(False) # 캡처 중에는 저장 비활성화
         self.filter_checkbox.setEnabled(False)
         self.packet_table.setRowCount(0)
         self.packet_store.clear()
-            
+        self.all_packets.clear()
             
     def stop_capture(self):
         if self.capturer:
@@ -157,6 +160,8 @@ class MainWindow(QMainWindow):
         self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
         self.iface_combo.setEnabled(True)
+        if self.all_packets:
+            self.save_button.setEnabled(True) # 캡처가 멈추면 저장 버튼 활성화
         self.filter_checkbox.setEnabled(True) # 캡처가 멈추면 필터 체크박스 활성화
    
    
@@ -165,7 +170,7 @@ class MainWindow(QMainWindow):
         """
         백그라운드 스레드로부터 analysis 딕셔너리를 받아 테이블에 추가
         """
-        
+        self.all_packets.append(analysis)
         # 필터가 켜져 있을 때
         if self.filter_checkbox.isChecked() :
             src_port = analysis.get('src_port')
@@ -238,7 +243,7 @@ class MainWindow(QMainWindow):
             return
         
         # 2. 파일 저장 대화상자 열기 (UI)
-        file_path, _ = QFileDialog.getsaveFileName(
+        file_path, _ = QFileDialog.getSaveFileName(
             self,"로그 파일 저장", "", "CSV Files (*.csv);;All Files (*)"
         )
         
