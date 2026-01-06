@@ -12,6 +12,9 @@ from core.analyzer import PacketAnalyzer
 from core.capturer import PacketCapturer
 from ui.sensitive_info_window import SensitiveInfoWindow
 from utils.csv_exporter import export_packets_to_csv
+from ui.dashboard import DashboardWidget
+
+
 #----------------------------------------------------------------------------------
 # 비암호화 트래픽을 간주할 포트 번호 집합
 # (필요에 따라 포트 번호를 추가/제거)
@@ -87,6 +90,11 @@ class MainWindow(QMainWindow):
         control_layout.addStretch() # 버튼들 왼쪽 정렬
         main_layout.addWidget(control_widget)
         
+        
+        # 대시보드 위젯
+        self.dashboard = DashboardWidget()
+        main_layout.addWidget(self.dashboard)
+        
         # 2. 스플리터 (상단 테이블/ 하단 페이로드 뷰)
         splitter = QSplitter(Qt.Vertical)
         main_layout.addWidget(splitter)
@@ -142,7 +150,7 @@ class MainWindow(QMainWindow):
         self.capturer.packet_captured_signal.connect(self.add_packet_to_table)
 
         self.capturer.start(interface_name)
-        
+        self.dashboard.reset_stats()  # 대시보드 통계 초기화
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
         self.iface_combo.setEnabled(False)
@@ -171,6 +179,7 @@ class MainWindow(QMainWindow):
         백그라운드 스레드로부터 analysis 딕셔너리를 받아 테이블에 추가
         """
         self.all_packets.append(analysis)
+        self.dashboard.update_stats(analysis)  # 대시보드 통계 업데이트
         # 필터가 켜져 있을 때
         if self.filter_checkbox.isChecked() :
             src_port = analysis.get('src_port')
